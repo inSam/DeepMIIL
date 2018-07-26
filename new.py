@@ -78,6 +78,8 @@ def load_examples():
         
     input_samples = [d for d in os.listdir(a.input_dir) if os.path.isdir(os.path.join(a.input_dir, d))]
 
+    paths = []
+    
     for samples in input_samples:
         input_dir = os.path.join(a.input_dir, samples)
         input_paths = glob.glob(os.path.join(input_dir, "*.jpg"))
@@ -95,9 +97,8 @@ def load_examples():
         else:
             input_paths = sorted(input_paths)
 
-    paths = []
-    for i in range(len(input_paths) - 31):
-        paths.append(input_paths[i:i+32])
+        for i in range(len(input_paths) - 31):
+            paths.append(input_paths[i:i+32])
 
     with tf.name_scope("load_images"):
         sample_queue = tf.train.input_producer(paths, shuffle=a.mode == "train")
