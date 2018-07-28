@@ -403,8 +403,8 @@ def save_images(fetches, step=None):
 
     filesets = []
 
-
-    print(fetches["paths"])
+    contents = fetches["targets"][0]
+    print("Shape of content: %s" % contents.get_shape())
     # for i, in_path in enumerate(fetches["paths"]):
     #     name, _ = os.path.splitext(os.path.basename(in_path.decode("utf8")))
     #     fileset = {"name": name, "step": step}
