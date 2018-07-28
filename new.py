@@ -156,72 +156,6 @@ def generate_examples():
         steps_per_epoch=steps_per_epoch,
     )
                 
-def load_examples():
-    """
-    Loads examples using directory location in parser
-    """
-        
-    with tf.name_scope("load_images"):
-        reader = tf.WholeFileReader()
-        path_queue = tf.train.string_input_producer(temp_path, shuffle=a.mode == "train")
-
-        raw_input_section = []
-
-        paths, contents = reader.read(path_queue)
-        raw_input = decode(contents)
-        raw_input = tf.image.convert_image_dtype(raw_input, dtype=tf.float32)
-        raw_input.set_shape([64, None, None, 3])
-        raw_input_section.append(raw_input)
-
-        assertion = tf.assert_equal(tf.shape(raw_input_section)[3], 3, message="image does not have 3 channels")
-        raw_input_section = tf.convert_to_tensor(raw_input_section)
-        width = tf.shape(raw_input_section)[2]
-        a_images = preprocess(raw_input_section[:,:,:width//2,:])
-        b_images = preprocess(raw_input_section[:,:,width//2:,:])
-
-    if a.which_direction == "AtoB":
-        inputs, targets = [a_images, b_images]
-    elif a.which_direction == "BtoA":
-        inputs, targets = [b_images, a_images]
-    else:
-        raise Exception("invalid direction")
-
-   # synchronize seed for image operations so that we do the same operations to both
-    # input and output images
-    seed = random.randint(0, 2**31 - 1)
-    def transform(image):
-        r = image
-        # if a.flip:
-        #     r = tf.image.random_flip_left_right(r, seed=seed)
-
-        # area produces a nice downscaling, but does nearest neighbor for upscaling
-        # assume we're going to be doing downscaling here
-        r = tf.image.resize_images(r, [a.scale_size, a.scale_size], method=tf.image.ResizeMethod.AREA)
-
-        offset = tf.cast(tf.floor(tf.random_uniform([2], 0, a.scale_size - CROP_SIZE + 1, seed=seed)), dtype=tf.int32)
-        if a.scale_size > CROP_SIZE:
-            r = tf.image.crop_to_bounding_box(r, offset[0], offset[1], CROP_SIZE, CROP_SIZE)
-        elif a.scale_size < CROP_SIZE:
-            raise Exception("scale size cannot be less than crop size")
-        return r
-    
-    with tf.name_scope("input_images"):
-        input_images = transform(inputs)
-
-    with tf.name_scope("target_images"):
-        target_images = transform(targets)
-
-    paths_batch, inputs_batch, targets_batch = tf.train.batch([paths, input_images, target_images], batch_size=a.batch_size)
-    steps_per_epoch = int(math.ceil(len(input_paths) / a.batch_size))
-
-    return Examples(
-        paths=paths_batch,
-        inputs=inputs_batch,
-        targets=targets_batch,
-        count=len(input_paths),
-        steps_per_epoch=steps_per_epoch,
-    )
-
 def discrim_conv(batch_input, out_channels, stride):
     padded_input = tf.pad(batch_input, [[0, 0], [1, 1], [1, 1], [1, 1], [0, 0]], mode="CONSTANT")
     return tf.layers.conv3d(padded_input, out_channels, kernel_size=4, strides=(stride, stride, stride), padding="valid", kernel_initializer=tf.random_normal_initializer(0, 0.02))
@@ -546,27 +480,31 @@ def main():
     print("input size: %s" %converted_inputs.get_shape())
     print("target size: %s" %converted_targets.get_shape())
     print("output size: %s" %converted_outputs.get_shape())
-    for i in range(outputs.get_shape()[1]):
-        with tf.name_scope("encode_images"):
+    with tf.name_scope("encode_images"):
+        for i in range(outputs.get_shape()[1]):
             display_fetches = {
                 "paths": examples.paths,
                 "inputs": tf.map_fn(tf.image.encode_png, converted_inputs[:,i,:,:], dtype=tf.string, name="input_pngs"),
                 "targets": tf.map_fn(tf.image.encode_png, converted_targets[:,i,:,:], dtype=tf.string, name="target_pngs"),
                 "outputs": tf.map_fn(tf.image.encode_png, converted_outputs[:,i,:,:], dtype=tf.string, name="output_pngs"),
-            }
+        }
 
     # summaries
     with tf.name_scope("inputs_summary"):
-        tf.summary.image("inputs", converted_inputs)
+        for i in range(converted_inputs.get_shape()[1]):
+            tf.summary.image("inputs", converted_inputs[:,i,:,:])
 
     with tf.name_scope("targets_summary"):
-        tf.summary.image("targets", converted_targets)
+        for i in range(converted_targets.get_shape()[1]):
+            tf.summary.image("targets", converted_targets[:,i,:,:])
 
     with tf.name_scope("outputs_summary"):
-        tf.summary.image("outputs", converted_outputs)
+        for i in range(converted_outputs.get_shape()[1]):
+            tf.summary.image("outputs", converted_outputs[:,i,:,:])
 
     with tf.name_scope("predict_real_summary"):
-        tf.summary.image("predict_real", tf.image.convert_image_dtype(model.predict_real, dtype=tf.uint8))
+        for i in range(model.predict_real.get_shape()[1]):
+            tf.summary.image("predict_real", tf.image.convert_image_dtype(model.predict_real[:,i,:,:], dtype=tf.uint8))
 
     tf.summary.scalar("discriminator_loss", model.discrim_loss)
     tf.summary.scalar("generator_loss_GAN", model.gen_loss_GAN)
