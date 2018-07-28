@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+import imageio
 
 import tensorflow as tf
 import numpy as np
@@ -65,10 +66,25 @@ def deprocess(image):
         # [-1, 1] => [0, 1]
         return (image + 1) / 2
 
-def load_examples():
-    """
-    Loads examples using directory location in parser
-    """
+def transform(image, seed):
+    r = image
+    if a.flip:
+        r = tf.image.random_flip_left_right(r, seed=seed)
+
+    # area produces a nice downscaling, but does nearest neighbor for upscaling
+    # assume we're going to be doing downscaling here
+    r = tf.image.resize_images(r, [a.scale_size, a.scale_size], method=tf.image.ResizeMethod.AREA)
+
+    offset = tf.cast(tf.floor(tf.random_uniform([2], 0, a.scale_size - CROP_SIZE + 1, seed=seed)), dtype=tf.int32)
+    if a.scale_size > CROP_SIZE:
+        r = tf.image.crop_to_bounding_box(r, offset[0], offset[1], CROP_SIZE, CROP_SIZE)
+    elif a.scale_size < CROP_SIZE:
+        raise Exception("scale size cannot be less than crop size")
+    return r
+
+def generate_examples():
+    seed = random.randint(0, 2**31 - 1)
+    
     if a.input_dir is None or not os.path.exists(a.input_dir):
         raise Exception("input_dir does not exist")
 
@@ -78,18 +94,13 @@ def load_examples():
         
     input_samples = [d for d in os.listdir(a.input_dir) if os.path.isdir(os.path.join(a.input_dir, d))]
 
+    dataset_input = []
+    dataset_target = []
     paths = []
-    
     for samples in input_samples:
+        
         input_dir = os.path.join(a.input_dir, samples)
-        input_paths = glob.glob(os.path.join(input_dir, "*.jpg"))
-        decode = tf.image.decode_jpeg
-        if(len(input_paths) == 0):
-            input_paths = glob.glob(os.path.join(input_dir, "*.png"))
-            decode = tf.image.decode_png
-
-        # if len(input_paths) == 0:
-        #     raise Exception("input_dir contains no image files")
+        input_paths = glob.glob(os.path.join(input_dir, "*.png"))
         # if the image names are numbers, sort by the value rather than asciibetically
         # having sorted inputs means that the outputs are sorted in test mode
         if all(get_name(path).isdigit() for path in input_paths):
@@ -97,22 +108,70 @@ def load_examples():
         else:
             input_paths = sorted(input_paths)
 
-        for i in range(len(input_paths) - 31):
-            paths.append(input_paths[i:i+32])
+        raw_input = []
+        raw_target= []
+        for image_path in input_paths:
+            image = imageio.imread(image_path).astype(np.float32)
+            with tf.name_scope("prepare_slice"):
+                width = image.shape[1] # [height, width, channels]
+                a_images = preprocess(image[:,:width//2,:])
+                b_images = preprocess(image[:,width//2:,:])
 
+            if a.which_direction == "AtoB":
+                inputs, targets = [a_images, b_images]
+            elif a.which_direction == "BtoA":
+                inputs, targets = [b_images, a_images]
+            else:
+                raise Exception("invalid direction")
+
+            with tf.name_scope("input_images"):
+                input_images = transform(inputs, seed)
+
+            with tf.name_scope("target_images"):
+                target_images = transform(targets, seed)
+
+            raw_input.append(input_images)
+            raw_target.append(target_images)
+
+        raw_input = tf.convert_to_tensor(raw_input)
+        raw_target = tf.convert_to_tensor(raw_target)
+        for i in range(len(input_paths) - 31):
+            paths.append(str(i)+"-"+str(i+31)+"_"+samples)
+            dataset_input.append(raw_input[i:i+32])
+            dataset_target.append(raw_target[i:i+32])
+
+    size = len(dataset_input)
+    dataset_input = tf.convert_to_tensor(dataset_input)
+    dataset_target = tf.convert_to_tensor(dataset_target)
+    paths = tf.convert_to_tensor(paths)
+    
+    paths_batch, inputs_batch, targets_batch = tf.train.batch([paths, dataset_input, dataset_target], batch_size=a.batch_size, enqueue_many=True)
+    steps_per_epoch = int(math.ceil(size / a.batch_size))
+
+    return Examples(
+        paths = paths_batch,
+        inputs=inputs_batch,
+        targets=targets_batch, 
+        count=size,
+        steps_per_epoch=steps_per_epoch,
+    )
+                
+def load_examples():
+    """
+    Loads examples using directory location in parser
+    """
+        
     with tf.name_scope("load_images"):
-        sample_queue = tf.train.input_producer(paths, shuffle=a.mode == "train")
         reader = tf.WholeFileReader()
-        path_queue = tf.train.string_input_producer(sample_queue.dequeue(), shuffle=a.mode == "train")
+        path_queue = tf.train.string_input_producer(temp_path, shuffle=a.mode == "train")
 
         raw_input_section = []
-        for i in range(32):
-            paths, contents = reader.read(path_queue)
-            raw_input = decode(contents)
-            raw_input = tf.image.convert_image_dtype(raw_input, dtype=tf.float32)
-            raw_input.set_shape([None, None, 3])
-            raw_input_section.append(raw_input)
 
+        paths, contents = reader.read(path_queue)
+        raw_input = decode(contents)
+        raw_input = tf.image.convert_image_dtype(raw_input, dtype=tf.float32)
+        raw_input.set_shape([64, None, None, 3])
+        raw_input_section.append(raw_input)
 
         assertion = tf.assert_equal(tf.shape(raw_input_section)[3], 3, message="image does not have 3 channels")
         raw_input_section = tf.convert_to_tensor(raw_input_section)
@@ -455,12 +514,13 @@ def main():
     if not os.path.exists(a.output_dir):
         os.makedirs(a.output_dir)
 
-    examples = load_examples()
+
+    examples = generate_examples()
     print("examples count = %d" % examples.count)
     #inputs [batch_size, #images(depth), height, width, channels]
     
     model = create_model(examples.inputs, examples.targets)
-    # undo colorization splitting on images that we use for display/output
+    #undo colorization splitting on images that we use for display/output
     inputs = deprocess(examples.inputs)
     targets = deprocess(examples.targets)
     outputs = deprocess(model.outputs)
