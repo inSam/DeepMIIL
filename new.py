@@ -443,7 +443,7 @@ def append_index(filesets, step=False):
     return index_path
 
 def tensor_map(tensor, gname):
-    for i in range(tf.shape(tensor)[1]):
+    for i in range(32):
         tensor[:,i,:,:] = tf.map_fn(tf.image.encode_png, tensor[:,i,:,:], name=gname)
     return tensor
         
