@@ -412,8 +412,9 @@ def save_images(fetches, step=None):
             fileset[kind] = filename
             out_path = os.path.join(image_dir, filename)
             contents = fetches[kind][i]
-            with open(out_path, "wb") as f:
-                f.write(contents)
+            for j in len(contents):
+                with open(out_path+"_"+str(j), "wb") as f:
+                    f.write(contents[i])
         filesets.append(fileset)
     return filesets
 
