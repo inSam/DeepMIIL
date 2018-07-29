@@ -487,9 +487,9 @@ def main():
         for i in range(outputs.get_shape()[1]):
             display_fetches = {
                 "paths": examples.paths,
-                "inputs": tf.map_fn(tf.image.encode_png, converted_inputs[:,i,:,:], dtype=tf.string, name="input_pngs"),
-                "targets": tf.map_fn(tf.image.encode_png, converted_targets[:,i,:,:], dtype=tf.string, name="target_pngs"),
-                "outputs": tf.map_fn(tf.image.encode_png, converted_outputs[:,i,:,:], dtype=tf.string, name="output_pngs"),
+                "inputs"+str(i): tf.map_fn(tf.image.encode_png, converted_inputs[:,i,:,:], dtype=tf.string, name="input_pngs"),
+                "targets"+str(i): tf.map_fn(tf.image.encode_png, converted_targets[:,i,:,:], dtype=tf.string, name="target_pngs"),
+                "outputs"+str(i): tf.map_fn(tf.image.encode_png, converted_outputs[:,i,:,:], dtype=tf.string, name="output_pngs"),
         }
 
     # summaries
