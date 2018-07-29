@@ -443,9 +443,10 @@ def append_index(filesets, step=False):
     return index_path
 
 def tensor_map(tensor, gname):
+    output_list = []
     for i in range(32):
-        tensor[:,i,:,:] = tf.map_fn(tf.image.encode_png, tensor[:,i,:,:], name=gname)
-    return tensor
+        output_list.append(tf.map_fn(tf.image.encode_png, tensor[:,i,:,:], name=gname))
+    return tf.stack(output_list, axis=1)
         
 def main():
     set_seed()
