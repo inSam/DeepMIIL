@@ -402,22 +402,19 @@ def save_images(fetches, step=None):
         os.makedirs(image_dir)
 
     filesets = []
-
-    contents = fetches["targets"][0]
-    print(contents)
-    # for i, in_path in enumerate(fetches["paths"]):
-    #     name, _ = os.path.splitext(os.path.basename(in_path.decode("utf8")))
-    #     fileset = {"name": name, "step": step}
-    #     for kind in ["inputs", "outputs", "targets"]:
-    #         filename = name + "-" + kind + ".png"
-    #         if step is not None:
-    #             filename = "%08d-%s" % (step, filename)
-    #         fileset[kind] = filename
-    #         out_path = os.path.join(image_dir, filename)
-    #         contents = fetches[kind][i]
-    #         with open(out_path, "wb") as f:
-    #             f.write(contents)
-    #     filesets.append(fileset)
+    for i, in_path in enumerate(fetches["paths"]):
+        name, _ = os.path.splitext(os.path.basename(in_path.decode("utf8")))
+        fileset = {"name": name, "step": step}
+        for kind in ["inputs", "outputs", "targets"]:
+            filename = name + "-" + kind + ".png"
+            if step is not None:
+                filename = "%08d-%s" % (step, filename)
+            fileset[kind] = filename
+            out_path = os.path.join(image_dir, filename)
+            contents = fetches[kind][i]
+            with open(out_path, "wb") as f:
+                f.write(contents)
+        filesets.append(fileset)
     return filesets
 
 def append_index(filesets, step=False):
@@ -444,6 +441,10 @@ def append_index(filesets, step=False):
         index.write("</tr>")
     return index_path
 
+def tensor_map(tensor, gname):
+    for i in range(tf.shape(tensor)[1]):
+        tensor[:,i,:,:] = tf.map_fn(tf.image.encode_png, tensor[:,i,:,:], name=gname)
+    return tensor
         
 def main():
     set_seed()
@@ -486,9 +487,9 @@ def main():
     with tf.name_scope("encode_images"):
         display_fetches = {
                 "paths": examples.paths,
-                "inputs": tf.map_fn(tf.image.encode_png, converted_inputs, dtype=tf.string, name="input_pngs"),
-                "targets": tf.map_fn(tf.image.encode_png, converted_targets, dtype=tf.string, name="target_pngs"),
-                "outputs": tf.map_fn(tf.image.encode_png, converted_outputs, dtype=tf.string, name="output_pngs"),
+                "inputs": tensor_map(converted_inputs, "input_pngs"),
+                "targets": tensor_map(converted_targets, "target_pngs"),
+                "outputs": tensor_map(converted_outputs, "output_pngs"),
         }
 
     # summaries
