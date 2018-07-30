@@ -5,6 +5,7 @@ import imageio
 
 import tensorflow as tf
 import numpy as np
+import matplotlib.pyplot as plt
 import argparse
 import os
 import json
@@ -111,12 +112,14 @@ def generate_examples():
         raw_input = []
         raw_target= []
         for image_path in input_paths:
-            image = imageio.imread(image_path).astype(np.float32)
+            image = imageio.imread(image_path)
+            image =  tf.image.convert_image_dtype(image, dtype=tf.float32)
+
             with tf.name_scope("prepare_slice"):
                 width = image.shape[1] # [height, width, channels]
                 a_images = preprocess(image[:,:width//2,:])
                 b_images = preprocess(image[:,width//2:,:])
-
+            
             if a.which_direction == "AtoB":
                 inputs, targets = [a_images, b_images]
             elif a.which_direction == "BtoA":
@@ -129,12 +132,17 @@ def generate_examples():
 
             with tf.name_scope("target_images"):
                 target_images = transform(targets, seed)
-
+            # with tf.Session() as sess:
+            #     plt.imshow(sess.run(input_images))
+            #     plt.show()
             raw_input.append(input_images)
             raw_target.append(target_images)
 
         raw_input = tf.convert_to_tensor(raw_input)
         raw_target = tf.convert_to_tensor(raw_target)
+        # with tf.Session() as sess:
+        #     plt.imshow(sess.run(raw_target)[10])
+        #     plt.show()
         for i in range(len(input_paths) - 31):
             paths.append(str(i)+"-"+str(i+31)+"_"+samples)
             dataset_input.append(raw_input[i:i+32])
@@ -457,7 +465,7 @@ def main():
 
     examples = generate_examples()
     print("examples count = %d" % examples.count)
-    #inputs [batch_size, #images(depth), height, width, channels]
+    inputs [batch_size, #images(depth), height, width, channels]
     
     model = create_model(examples.inputs, examples.targets)
     #undo colorization splitting on images that we use for display/output
