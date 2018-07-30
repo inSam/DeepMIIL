@@ -5,7 +5,6 @@ import imageio
 
 import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
 import argparse
 import os
 import json
@@ -98,14 +97,10 @@ def generate_examples():
     dataset_input = []
     dataset_target = []
     paths = []
-    decode = tf.image.decode_png
-    reader = tf.WholeFileReader()
     for samples in input_samples:
         
         input_dir = os.path.join(a.input_dir, samples)
         input_paths = glob.glob(os.path.join(input_dir, "*.png"))
-        with tf.name_scope("load_images"):
-            path_queue = tf.train.string_input_producer(input_paths, shuffle=False)
         # if the image names are numbers, sort by the value rather than asciibetically
         # having sorted inputs means that the outputs are sorted in test mode
         if all(get_name(path).isdigit() for path in input_paths):
@@ -116,10 +111,9 @@ def generate_examples():
         raw_input = []
         raw_target= []
         for image_path in input_paths:
-            path, image = reader.read(path_queue)
-            image = decode(image)
+            image = imageio.imread(image_path).astype(np.float32)
             with tf.name_scope("prepare_slice"):
-                width = tf.shape(image)[1] # [height, width, channels]
+                width = image.shape[1] # [height, width, channels]
                 a_images = preprocess(image[:,:width//2,:])
                 b_images = preprocess(image[:,width//2:,:])
 
@@ -139,21 +133,16 @@ def generate_examples():
             raw_input.append(input_images)
             raw_target.append(target_images)
 
-        raw_input = tf.stack(raw_input, axis=0)
-        raw_target = tf.stack(raw_target, axis=0)
-        with tf.Session() as sess:            
-            imgstack = raw_input.eval()
-            plt.imshow(imgstack[10])
-            plt.show()
-            
+        raw_input = tf.convert_to_tensor(raw_input)
+        raw_target = tf.convert_to_tensor(raw_target)
         for i in range(len(input_paths) - 31):
             paths.append(str(i)+"-"+str(i+31)+"_"+samples)
             dataset_input.append(raw_input[i:i+32])
             dataset_target.append(raw_target[i:i+32])
 
     size = len(dataset_input)
-    dataset_input = tf.stack(dataset_input, axis=0)
-    dataset_target = tf.stack(dataset_target, axis=0)
+    dataset_input = tf.convert_to_tensor(dataset_input)
+    dataset_target = tf.convert_to_tensor(dataset_target)
     paths = tf.convert_to_tensor(paths)
     
     paths_batch, inputs_batch, targets_batch = tf.train.batch([paths, dataset_input, dataset_target], batch_size=a.batch_size, enqueue_many=True)
@@ -476,159 +465,159 @@ def main():
     targets = deprocess(examples.targets)
     outputs = deprocess(model.outputs)
     
-    # def convert(image):
-    #     if a.aspect_ratio != 1.0:
-    #         # upscale to correct aspect ratio
-    #         size = [CROP_SIZE, int(round(CROP_SIZE * a.aspect_ratio))]
-    #         image = tf.image.resize_images(image, size=size, method=tf.image.ResizeMethod.BICUBIC)
+    def convert(image):
+        if a.aspect_ratio != 1.0:
+            # upscale to correct aspect ratio
+            size = [CROP_SIZE, int(round(CROP_SIZE * a.aspect_ratio))]
+            image = tf.image.resize_images(image, size=size, method=tf.image.ResizeMethod.BICUBIC)
 
-    #     return tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
+        return tf.image.convert_image_dtype(image, dtype=tf.uint8, saturate=True)
 
-    # # reverse any processing on images so they can be written to disk or displayed to user
-    # with tf.name_scope("convert_inputs"):
-    #     converted_inputs = convert(inputs)
+    # reverse any processing on images so they can be written to disk or displayed to user
+    with tf.name_scope("convert_inputs"):
+        converted_inputs = convert(inputs)
 
-    # with tf.name_scope("convert_targets"):
-    #     converted_targets = convert(targets)
+    with tf.name_scope("convert_targets"):
+        converted_targets = convert(targets)
 
-    # with tf.name_scope("convert_outputs"):
-    #     converted_outputs = convert(outputs)
+    with tf.name_scope("convert_outputs"):
+        converted_outputs = convert(outputs)
 
-    # print("input size: %s" %converted_inputs.get_shape())
-    # print("target size: %s" %converted_targets.get_shape())
-    # print("output size: %s" %converted_outputs.get_shape())
-    # with tf.name_scope("encode_images"):
-    #     display_fetches = {
-    #             "paths": examples.paths,
-    #             "inputs": tensor_map(converted_inputs, "input_pngs"),
-    #             "targets": tensor_map(converted_targets, "target_pngs"),
-    #             "outputs": tensor_map(converted_outputs, "output_pngs"),
-    #     }
+    print("input size: %s" %converted_inputs.get_shape())
+    print("target size: %s" %converted_targets.get_shape())
+    print("output size: %s" %converted_outputs.get_shape())
+    with tf.name_scope("encode_images"):
+        display_fetches = {
+                "paths": examples.paths,
+                "inputs": tensor_map(converted_inputs, "input_pngs"),
+                "targets": tensor_map(converted_targets, "target_pngs"),
+                "outputs": tensor_map(converted_outputs, "output_pngs"),
+        }
 
-    # # summaries
-    # with tf.name_scope("inputs_summary"):
-    #     for i in range(converted_inputs.get_shape()[1]):
-    #         tf.summary.image("inputs", converted_inputs[:,i,:,:])
+    # summaries
+    with tf.name_scope("inputs_summary"):
+        for i in range(converted_inputs.get_shape()[1]):
+            tf.summary.image("inputs", converted_inputs[:,i,:,:])
 
-    # with tf.name_scope("targets_summary"):
-    #     for i in range(converted_targets.get_shape()[1]):
-    #         tf.summary.image("targets", converted_targets[:,i,:,:])
+    with tf.name_scope("targets_summary"):
+        for i in range(converted_targets.get_shape()[1]):
+            tf.summary.image("targets", converted_targets[:,i,:,:])
 
-    # with tf.name_scope("outputs_summary"):
-    #     for i in range(converted_outputs.get_shape()[1]):
-    #         tf.summary.image("outputs", converted_outputs[:,i,:,:])
+    with tf.name_scope("outputs_summary"):
+        for i in range(converted_outputs.get_shape()[1]):
+            tf.summary.image("outputs", converted_outputs[:,i,:,:])
 
-    # with tf.name_scope("predict_real_summary"):
-    #     for i in range(model.predict_real.get_shape()[1]):
-    #         tf.summary.image("predict_real", tf.image.convert_image_dtype(model.predict_real[:,i,:,:], dtype=tf.uint8))
+    with tf.name_scope("predict_real_summary"):
+        for i in range(model.predict_real.get_shape()[1]):
+            tf.summary.image("predict_real", tf.image.convert_image_dtype(model.predict_real[:,i,:,:], dtype=tf.uint8))
 
-    # tf.summary.scalar("discriminator_loss", model.discrim_loss)
-    # tf.summary.scalar("generator_loss_GAN", model.gen_loss_GAN)
-    # tf.summary.scalar("generator_loss_L1", model.gen_loss_L1)
+    tf.summary.scalar("discriminator_loss", model.discrim_loss)
+    tf.summary.scalar("generator_loss_GAN", model.gen_loss_GAN)
+    tf.summary.scalar("generator_loss_L1", model.gen_loss_L1)
 
-    # for var in tf.trainable_variables():
-    #     tf.summary.histogram(var.op.name + "/values", var)
+    for var in tf.trainable_variables():
+        tf.summary.histogram(var.op.name + "/values", var)
 
-    # for grad, var in model.discrim_grads_and_vars + model.gen_grads_and_vars:
-    #     tf.summary.histogram(var.op.name + "/gradients", grad)
+    for grad, var in model.discrim_grads_and_vars + model.gen_grads_and_vars:
+        tf.summary.histogram(var.op.name + "/gradients", grad)
 
-    # with tf.name_scope("parameter_count"):
-    #     parameter_count = tf.reduce_sum([tf.reduce_prod(tf.shape(v)) for v in tf.trainable_variables()])
+    with tf.name_scope("parameter_count"):
+        parameter_count = tf.reduce_sum([tf.reduce_prod(tf.shape(v)) for v in tf.trainable_variables()])
 
-    # saver = tf.train.Saver(max_to_keep=1)
+    saver = tf.train.Saver(max_to_keep=1)
 
-    # logdir = a.output_dir if (a.trace_freq > 0 or a.summary_freq > 0) else None
-    # sv = tf.train.Supervisor(logdir=logdir, save_summaries_secs=0, saver=None)
+    logdir = a.output_dir if (a.trace_freq > 0 or a.summary_freq > 0) else None
+    sv = tf.train.Supervisor(logdir=logdir, save_summaries_secs=0, saver=None)
 
-    # with sv.managed_session() as sess:
-    #     print("parameter_count =", sess.run(parameter_count))
+    with sv.managed_session() as sess:
+        print("parameter_count =", sess.run(parameter_count))
 
-    #     if a.checkpoint is not None:
-    #         print("loading model from checkpoint")
-    #         checkpoint = tf.train.latest_checkpoint(a.checkpoint)
-    #         saver.restore(sess, checkpoint)
+        if a.checkpoint is not None:
+            print("loading model from checkpoint")
+            checkpoint = tf.train.latest_checkpoint(a.checkpoint)
+            saver.restore(sess, checkpoint)
 
-    #     max_steps = 2**32
-    #     if a.max_epochs is not None:
-    #         max_steps = examples.steps_per_epoch * a.max_epochs
-    #     if a.max_steps is not None:
-    #         max_steps = a.max_steps
+        max_steps = 2**32
+        if a.max_epochs is not None:
+            max_steps = examples.steps_per_epoch * a.max_epochs
+        if a.max_steps is not None:
+            max_steps = a.max_steps
 
-    #     if a.mode == "test":
-    #         # testing
-    #         # at most, process the test data once
-    #         start = time.time()
-    #         max_steps = min(examples.steps_per_epoch, max_steps)
-    #         for step in range(max_steps):
-    #             results = sess.run(display_fetches)
-    #             filesets = save_images(results)
-    #             for i, f in enumerate(filesets):
-    #                 print("evaluated image", f["name"])
-    #             index_path = append_index(filesets)
-    #         print("wrote index at", index_path)
-    #         print("rate", (time.time() - start) / max_steps)
-    #     else:
-    #         # training
-    #         start = time.time()
+        if a.mode == "test":
+            # testing
+            # at most, process the test data once
+            start = time.time()
+            max_steps = min(examples.steps_per_epoch, max_steps)
+            for step in range(max_steps):
+                results = sess.run(display_fetches)
+                filesets = save_images(results)
+                for i, f in enumerate(filesets):
+                    print("evaluated image", f["name"])
+                index_path = append_index(filesets)
+            print("wrote index at", index_path)
+            print("rate", (time.time() - start) / max_steps)
+        else:
+            # training
+            start = time.time()
 
-    #         for step in range(max_steps):
-    #             def should(freq):
-    #                 return freq > 0 and ((step + 1) % freq == 0 or step == max_steps - 1)
+            for step in range(max_steps):
+                def should(freq):
+                    return freq > 0 and ((step + 1) % freq == 0 or step == max_steps - 1)
 
-    #             options = None
-    #             run_metadata = None
-    #             if should(a.trace_freq):
-    #                 options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-    #                 run_metadata = tf.RunMetadata()
+                options = None
+                run_metadata = None
+                if should(a.trace_freq):
+                    options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                    run_metadata = tf.RunMetadata()
 
-    #             fetches = {
-    #                 "train": model.train,
-    #                 "global_step": sv.global_step,
-    #             }
+                fetches = {
+                    "train": model.train,
+                    "global_step": sv.global_step,
+                }
 
-    #             if should(a.progress_freq):
-    #                 fetches["discrim_loss"] = model.discrim_loss
-    #                 fetches["gen_loss_GAN"] = model.gen_loss_GAN
-    #                 fetches["gen_loss_L1"] = model.gen_loss_L1
+                if should(a.progress_freq):
+                    fetches["discrim_loss"] = model.discrim_loss
+                    fetches["gen_loss_GAN"] = model.gen_loss_GAN
+                    fetches["gen_loss_L1"] = model.gen_loss_L1
 
-    #             if should(a.summary_freq):
-    #                 fetches["summary"] = sv.summary_op
+                if should(a.summary_freq):
+                    fetches["summary"] = sv.summary_op
 
-    #             if should(a.display_freq):
-    #                 fetches["display"] = display_fetches
+                if should(a.display_freq):
+                    fetches["display"] = display_fetches
 
-    #             results = sess.run(fetches, options=options, run_metadata=run_metadata)
+                results = sess.run(fetches, options=options, run_metadata=run_metadata)
 
-    #             if should(a.summary_freq):
-    #                 print("recording summary")
-    #                 sv.summary_writer.add_summary(results["summary"], results["global_step"])
+                if should(a.summary_freq):
+                    print("recording summary")
+                    sv.summary_writer.add_summary(results["summary"], results["global_step"])
 
-    #             if should(a.display_freq):
-    #                 print("saving display images")
-    #                 filesets = save_images(results["display"], step=results["global_step"])
-    #                 append_index(filesets, step=True)
+                if should(a.display_freq):
+                    print("saving display images")
+                    filesets = save_images(results["display"], step=results["global_step"])
+                    append_index(filesets, step=True)
 
-    #             if should(a.trace_freq):
-    #                 print("recording trace")
-    #                 sv.summary_writer.add_run_metadata(run_metadata, "step_%d" % results["global_step"])
+                if should(a.trace_freq):
+                    print("recording trace")
+                    sv.summary_writer.add_run_metadata(run_metadata, "step_%d" % results["global_step"])
 
-    #             if should(a.progress_freq):
-    #                 # global_step will have the correct step count if we resume from a checkpoint
-    #                 train_epoch = math.ceil(results["global_step"] / examples.steps_per_epoch)
-    #                 train_step = (results["global_step"] - 1) % examples.steps_per_epoch + 1
-    #                 rate = (step + 1) * a.batch_size / (time.time() - start)
-    #                 remaining = (max_steps - step) * a.batch_size / rate
-    #                 print("progress  epoch %d  step %d  image/sec %0.1f  remaining %dm" % (train_epoch, train_step, rate, remaining / 60))
-    #                 print("discrim_loss", results["discrim_loss"])
-    #                 print("gen_loss_GAN", results["gen_loss_GAN"])
-    #                 print("gen_loss_L1", results["gen_loss_L1"])
+                if should(a.progress_freq):
+                    # global_step will have the correct step count if we resume from a checkpoint
+                    train_epoch = math.ceil(results["global_step"] / examples.steps_per_epoch)
+                    train_step = (results["global_step"] - 1) % examples.steps_per_epoch + 1
+                    rate = (step + 1) * a.batch_size / (time.time() - start)
+                    remaining = (max_steps - step) * a.batch_size / rate
+                    print("progress  epoch %d  step %d  image/sec %0.1f  remaining %dm" % (train_epoch, train_step, rate, remaining / 60))
+                    print("discrim_loss", results["discrim_loss"])
+                    print("gen_loss_GAN", results["gen_loss_GAN"])
+                    print("gen_loss_L1", results["gen_loss_L1"])
 
-    #             if should(a.save_freq):
-    #                 print("saving model")
-    #                 saver.save(sess, os.path.join(a.output_dir, "model"), global_step=sv.global_step)
+                if should(a.save_freq):
+                    print("saving model")
+                    saver.save(sess, os.path.join(a.output_dir, "model"), global_step=sv.global_step)
 
-    #             if sv.should_stop():
-    #                 break
+                if sv.should_stop():
+                    break
 
     
 main()
