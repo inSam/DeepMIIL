@@ -465,7 +465,7 @@ def main():
 
     examples = generate_examples()
     print("examples count = %d" % examples.count)
-    inputs [batch_size, #images(depth), height, width, channels]
+    #inputs [batch_size, #images(depth), height, width, channels]
     
     model = create_model(examples.inputs, examples.targets)
     #undo colorization splitting on images that we use for display/output
