@@ -57,9 +57,8 @@ Examples = collections.namedtuple("Examples", "paths, inputs, targets, count, st
 Model = collections.namedtuple("Model", "outputs, predict_real, predict_fake, discrim_loss, discrim_grads_and_vars, gen_loss_GAN, gen_loss_L1, gen_grads_and_vars, train")
 
 def preprocess(image):
-    with tf.name_scope("preprocess"):
-        # [0, 1] => [-1, 1]
-        return image * 2 - 1
+    # [0, 1] => [-1, 1]
+    return image * 2 - 1
 
 #reverse preprocss function
 def deprocess(image):
@@ -67,16 +66,17 @@ def deprocess(image):
         # [-1, 1] => [0, 1]
         return (image + 1) / 2
 
-def transform(image, seed):
+t_seed = random.randint(0, 2**31 - 1)
+def transform(image):
     r = image
     if a.flip:
-        r = tf.image.random_flip_left_right(r, seed=seed)
+        r = tf.image.random_flip_left_right(r, seed=t_seed)
 
     # area produces a nice downscaling, but does nearest neighbor for upscaling
     # assume we're going to be doing downscaling here
     r = tf.image.resize_images(r, [a.scale_size, a.scale_size], method=tf.image.ResizeMethod.AREA)
 
-    offset = tf.cast(tf.floor(tf.random_uniform([2], 0, a.scale_size - CROP_SIZE + 1, seed=seed)), dtype=tf.int32)
+    offset = tf.cast(tf.floor(tf.random_uniform([2], 0, a.scale_size - CROP_SIZE + 1, seed=t_seed)), dtype=tf.int32)
     if a.scale_size > CROP_SIZE:
         r = tf.image.crop_to_bounding_box(r, offset[0], offset[1], CROP_SIZE, CROP_SIZE)
     elif a.scale_size < CROP_SIZE:
@@ -84,20 +84,16 @@ def transform(image, seed):
     return r
 
 def generate_examples():
-    seed = random.randint(0, 2**31 - 1)
-    
     if a.input_dir is None or not os.path.exists(a.input_dir):
         raise Exception("input_dir does not exist")
 
     def get_name(path):
         name, _ = os.path.splitext(os.path.basename(path))
         return name
-        
+
+    #list containing the path of folders
     input_samples = [d for d in os.listdir(a.input_dir) if os.path.isdir(os.path.join(a.input_dir, d))]
 
-    dataset_input = []
-    dataset_target = []
-    paths = []
     for samples in input_samples:
         
         input_dir = os.path.join(a.input_dir, samples)
@@ -113,12 +109,11 @@ def generate_examples():
         raw_target= []
         for image_path in input_paths:
             image = imageio.imread(image_path)
-            image =  tf.image.convert_image_dtype(image, dtype=tf.float32)
-
-            with tf.name_scope("prepare_slice"):
-                width = image.shape[1] # [height, width, channels]
-                a_images = preprocess(image[:,:width//2,:])
-                b_images = preprocess(image[:,width//2:,:])
+            image = np.float32(image / 255.0)
+            
+            width = image.shape[1] # [height, width, channels]
+            a_images = preprocess(image[:, :width//2, :])
+            b_images = preprocess(image[:, width//2:, :])
             
             if a.which_direction == "AtoB":
                 inputs, targets = [a_images, b_images]
@@ -127,35 +122,41 @@ def generate_examples():
             else:
                 raise Exception("invalid direction")
 
-            with tf.name_scope("input_images"):
-                input_images = transform(inputs, seed)
-
-            with tf.name_scope("target_images"):
-                target_images = transform(targets, seed)
             # with tf.Session() as sess:
             #     plt.imshow(sess.run(input_images))
             #     plt.show()
-            raw_input.append(input_images)
-            raw_target.append(target_images)
+            raw_input.append(inputs)
+            raw_target.append(targets)
 
-        raw_input = tf.convert_to_tensor(raw_input)
-        raw_target = tf.convert_to_tensor(raw_target)
         # with tf.Session() as sess:
         #     plt.imshow(sess.run(raw_target)[10])
         #     plt.show()
         for i in range(len(input_paths) - 31):
-            paths.append(str(i)+"-"+str(i+31)+"_"+samples)
-            dataset_input.append(raw_input[i:i+32])
-            dataset_target.append(raw_target[i:i+32])
+            identifier = []
+            for j in range(i, i+32):
+                identifier.append(str(j) + "_" + samples + ".png")
+            identifier = np.array(identifier)
+            input_slice = np.array(raw_input[i:i+32])
+            target_slice = np.array(raw_target[i:i+32])
+            yield (input_slice, target_slice, identifier)
 
-    size = len(dataset_input)
-    dataset_input = tf.convert_to_tensor(dataset_input)
-    dataset_target = tf.convert_to_tensor(dataset_target)
-    paths = tf.convert_to_tensor(paths)
+
+def trans_fun(input, target, identifier):
+    input = tf.map_fn(transform, input)
+    target = tf.map_fn(transform, target)
+    return (input, target, identifier)
+
+
+def load_examples():
+    size = sum([max(0, len(files) - (32 - 1)) for r, d, files in os.walk(a.input_dir)])
     
-    paths_batch, inputs_batch, targets_batch = tf.train.batch([paths, dataset_input, dataset_target], batch_size=a.batch_size, enqueue_many=True)
-    steps_per_epoch = int(math.ceil(size / a.batch_size))
+    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([32, 256, 256, 3]), tf.TensorShape([32, 256, 256, 3]), tf.TensorShape([32])))
+    ds = ds.shuffle(100)
+    ds = ds.map(trans_fun).batch_and_drop_remainder(a.batch_size)
+    iter = ds.make_one_shot_iterator()
 
+    inputs_batch, targets_batch, paths_batch = iter.get_next()
+    steps_per_epoch = int(math.ceil(size / a.batch_size))
     return Examples(
         paths = paths_batch,
         inputs=inputs_batch,
@@ -163,7 +164,8 @@ def generate_examples():
         count=size,
         steps_per_epoch=steps_per_epoch,
     )
-                
+
+
 def discrim_conv(batch_input, out_channels, stride):
     padded_input = tf.pad(batch_input, [[0, 0], [1, 1], [1, 1], [1, 1], [0, 0]], mode="CONSTANT")
     return tf.layers.conv3d(padded_input, out_channels, kernel_size=4, strides=(stride, stride, stride), padding="valid", kernel_initializer=tf.random_normal_initializer(0, 0.02))
@@ -421,8 +423,8 @@ def save_images(fetches, step=None):
             out_path = os.path.join(image_dir, filename)
             contents = fetches[kind][i]
             for j in range(len(contents)):
-                with open(out_path+"_"+str(j), "wb") as f:
-                    f.write(contents[i])
+                with open(out_path, "wb") as f:
+                    f.write(contents[j])
         filesets.append(fileset)
     return filesets
 
@@ -462,16 +464,16 @@ def main():
     if not os.path.exists(a.output_dir):
         os.makedirs(a.output_dir)
 
-
-    examples = generate_examples()
+    examples = load_examples()
     print("examples count = %d" % examples.count)
     #inputs [batch_size, #images(depth), height, width, channels]
-    
+
     model = create_model(examples.inputs, examples.targets)
     #undo colorization splitting on images that we use for display/output
     inputs = deprocess(examples.inputs)
     targets = deprocess(examples.targets)
     outputs = deprocess(model.outputs)
+
     
     def convert(image):
         if a.aspect_ratio != 1.0:
