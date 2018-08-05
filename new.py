@@ -569,7 +569,7 @@ def main():
         else:
             # training
             start = time.time()
-
+            print("Max steps iteration: %d" % max_steps)
             for step in range(max_steps):
                 def should(freq):
                     return freq > 0 and ((step + 1) % freq == 0 or step == max_steps - 1)
