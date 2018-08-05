@@ -150,7 +150,7 @@ def trans_fun(input, target, identifier):
 def load_examples():
     size = sum([max(0, len(files) - (32 - 1)) for r, d, files in os.walk(a.input_dir)])
     
-    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([32, 256, 256, 3]), tf.TensorShape([32, 256, 256, 3]), tf.TensorShape([32])))
+    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([32, None, None, 3]), tf.TensorShape([32, None, None, 3]), tf.TensorShape([32])))
     ds = ds.shuffle(100)
     ds = ds.map(trans_fun)
     ds = ds.apply(tf.contrib.data.batch_and_drop_remainder(a.batch_size))
