@@ -152,7 +152,8 @@ def load_examples():
     
     ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([32, 256, 256, 3]), tf.TensorShape([32, 256, 256, 3]), tf.TensorShape([32])))
     ds = ds.shuffle(100)
-    ds = ds.map(trans_fun).batch_and_drop_remainder(a.batch_size)
+    ds = ds.map(trans_fun)
+    ds = ds.apply(tf.contrib.data.batch_and_drop_remainder(a.batch_size))
     iter = ds.make_one_shot_iterator()
 
     inputs_batch, targets_batch, paths_batch = iter.get_next()
