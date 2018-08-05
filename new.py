@@ -153,9 +153,10 @@ def load_examples():
     ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([32, None, None, 3]), tf.TensorShape([32, None, None, 3]), tf.TensorShape([32])))
     ds = ds.shuffle(100)
     ds = ds.map(trans_fun)
+    ds = ds.apply(tf.contrib.data.batch_and_drop_remainder(a.batch_size))
     iter = ds.make_one_shot_iterator()
 
-    inputs_batch, targets_batch, paths_batch = tf.train.batch(iter.get_next(), batch_size=a.batch_size)
+    inputs_batch, targets_batch, paths_batch = iter.get_next()
     steps_per_epoch = int(math.ceil(size / a.batch_size))
     return Examples(
         paths = paths_batch,
@@ -464,7 +465,24 @@ def main():
     if not os.path.exists(a.output_dir):
         os.makedirs(a.output_dir)
 
-    examples = load_examples()
+    size = sum([max(0, len(files) - (32 - 1)) for r, d, files in os.walk(a.input_dir)])
+    
+    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([32, None, None, 3]), tf.TensorShape([32, None, None, 3]), tf.TensorShape([32])))
+    ds = ds.shuffle(100)
+    ds = ds.map(trans_fun)
+    ds = ds.apply(tf.contrib.data.batch_and_drop_remainder(a.batch_size))
+    iter = ds.make_one_shot_iterator()
+
+    inputs_batch, targets_batch, paths_batch = iter.get_next()
+    steps_per_epoch = int(math.ceil(size / a.batch_size))
+    examples = Examples(
+        paths = paths_batch,
+        inputs=inputs_batch,
+        targets=targets_batch, 
+        count=size,
+        steps_per_epoch=steps_per_epoch,
+    )
+
     print("examples count = %d" % examples.count)
     #inputs [batch_size, #images(depth), height, width, channels]
 
@@ -569,7 +587,7 @@ def main():
         else:
             # training
             start = time.time()
-            print("Max steps iteration: %d" % max_steps)
+
             for step in range(max_steps):
                 def should(freq):
                     return freq > 0 and ((step + 1) % freq == 0 or step == max_steps - 1)
