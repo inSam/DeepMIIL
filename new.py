@@ -182,17 +182,16 @@ def load_examples():
         inputs = tf.reshape(inputs, [32, CROP_SIZE, CROP_SIZE, 3])
         targets = tf.reshape(targets, [32, CROP_SIZE, CROP_SIZE, 3])
 
-        paths_batch, inputs_batch, targets_batch = tf.train.batch([paths, inputs, targets], batch_size=a.batch_size)
-
+    paths_batch, inputs_batch, targets_batch = tf.train.batch([paths, inputs, targets], batch_size=a.batch_size)
     
-        steps_per_epoch = int(math.ceil(size / a.batch_size))
-        return Examples(
-            paths = paths_batch,
-            inputs=inputs_batch,
-            targets=targets_batch, 
-            count=size,
-            steps_per_epoch=steps_per_epoch,
-        )
+    steps_per_epoch = int(math.ceil(size / a.batch_size))
+    return Examples(
+        paths = paths_batch,
+        inputs=inputs_batch,
+        targets=targets_batch, 
+        count=size,
+        steps_per_epoch=steps_per_epoch,
+    )
 
 
 def discrim_conv(batch_input, out_channels, stride):
