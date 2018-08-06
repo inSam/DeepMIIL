@@ -164,7 +164,7 @@ def generate_examples():
 
 def load_examples():
     size = sum([max(0, len(files) - (32 - 1)) for r, d, files in os.walk(a.input_dir)])
-    data_path = 'train.tfrecords'
+    data_path = 'test.tfrecords'
     feature = {
         'inputs' : tf.FixedLenFeature([], tf.string),
         'targets' : tf.FixedLenFeature([], tf.string),
