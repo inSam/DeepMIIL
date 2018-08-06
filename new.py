@@ -5,7 +5,8 @@ import imageio
 
 import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
+import cv2
+#import matplotlib.pyplot as plt
 import argparse
 import os
 import json
@@ -14,6 +15,7 @@ import random
 import collections
 import math
 import time
+import sys
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--input_dir", help="path to folder containing images")
@@ -67,7 +69,7 @@ def deprocess(image):
         return (image + 1) / 2
 
 t_seed = random.randint(0, 2**31 - 1)
-def transform(image):
+def transform_old(image):
     r = image
     if a.flip:
         r = tf.image.random_flip_left_right(r, seed=t_seed)
@@ -83,6 +85,19 @@ def transform(image):
         raise Exception("scale size cannot be less than crop size")
     return r
 
+def transform(image):
+    r = image
+    r = cv2.resize(r, (a.scale_size, a.scale_size), interpolation=cv2.INTER_AREA )
+    offset = (np.floor(np.random.uniform(0, a.scale_size - CROP_SIZE + 1, (2)))).astype(np.int32)
+    if a.scale_size > CROP_SIZE:
+        r = r[offset[0]:offset[0]+CROP_SIZE, offset[1]:offset[1]+CROP_SIZE]
+    elif a.scale_size < CROP_SIZE:
+        raise Exception("scale size cannot be less than crop size")
+    return r
+
+def _bytes_feature(value):
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
 def generate_examples():
     if a.input_dir is None or not os.path.exists(a.input_dir):
         raise Exception("input_dir does not exist")
@@ -94,6 +109,8 @@ def generate_examples():
     #list containing the path of folders
     input_samples = [d for d in os.listdir(a.input_dir) if os.path.isdir(os.path.join(a.input_dir, d))]
 
+    test_filename = 'test.tfrecords'
+    writer = tf.python_io.TFRecordWriter(test_filename)
     for samples in input_samples:
         
         input_dir = os.path.join(a.input_dir, samples)
@@ -122,41 +139,51 @@ def generate_examples():
             else:
                 raise Exception("invalid direction")
 
-            # with tf.Session() as sess:
-            #     plt.imshow(sess.run(input_images))
-            #     plt.show()
+            inputs = transform(inputs)
+            targets = transform(targets)
             raw_input.append(inputs)
             raw_target.append(targets)
 
-        # with tf.Session() as sess:
-        #     plt.imshow(sess.run(raw_target)[10])
-        #     plt.show()
         for i in range(len(input_paths) - 31):
-            identifier = []
-            for j in range(i, i+32):
-                identifier.append(str(j) + "_" + samples + ".png")
-            identifier = np.array(identifier)
+            identifier = samples + "_" + str(i) + "_" + str(i-1) + ".png"
+            # for j in range(i, i+32):
+            #     identifier.append(str(j) + "_" + samples + ".png")
+            # identifier = np.array(identifier)
             input_slice = np.array(raw_input[i:i+32])
             target_slice = np.array(raw_target[i:i+32])
-            yield (input_slice, target_slice, identifier)
+            feature = {
+                'inputs' : _bytes_feature(tf.compat.as_bytes(input_slice.tostring())),
+                'targets' : _bytes_feature(tf.compat.as_bytes(target_slice.tostring())),
+                'paths' : _bytes_feature(tf.compat.as_bytes(identifier)),
+            }
+            example = tf.train.Example(features=tf.train.Features(feature=feature))
+            writer.write(example.SerializeToString())
 
-
-def trans_fun(input, target, identifier):
-    input = tf.map_fn(transform, input)
-    target = tf.map_fn(transform, target)
-    return (input, target, identifier)
-
+    writer.close()
+    sys.stdout.flush()
 
 def load_examples():
     size = sum([max(0, len(files) - (32 - 1)) for r, d, files in os.walk(a.input_dir)])
-    
-    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([32, None, None, 3]), tf.TensorShape([32, None, None, 3]), tf.TensorShape([32])))
-    ds = ds.shuffle(100)
-    ds = ds.map(trans_fun)
-    ds = ds.apply(tf.contrib.data.batch_and_drop_remainder(a.batch_size))
-    iter = ds.make_one_shot_iterator()
+    data_path = 'train.tfrecords'
+    feature = {
+        'inputs' : tf.FixedLenFeature([], tf.string),
+        'targets' : tf.FixedLenFeature([], tf.string),
+        'paths' : tf.FixedLenFeature([], tf.string),
+    }
+    filename_queue = tf.train.string_input_producer([data_path], num_epochs=1)
+    reader = tf.TFRecordReader()
+    _, serialized_example = reader.read(filename_queue)
+    features = tf.parse_single_example(serialized_example, features=feature)
+    inputs = tf.decode_raw(features['inputs'], tf.float32)
+    targets = tf.decode_raw(features['targets'], tf.float32)
+    paths = features['paths']
 
-    inputs_batch, targets_batch, paths_batch = iter.get_next()
+    inputs = tf.reshape(inputs, [32, CROP_SIZE, CROP_SIZE, 3])
+    targets = tf.reshape(targets, [32, CROP_SIZE, CROP_SIZE, 3])
+
+    paths_batch, inputs_batch, targets_batch = tf.train.batch([paths, inputs, targets], batch_size=a.batch_size)
+
+    
     steps_per_epoch = int(math.ceil(size / a.batch_size))
     return Examples(
         paths = paths_batch,
@@ -465,27 +492,11 @@ def main():
     if not os.path.exists(a.output_dir):
         os.makedirs(a.output_dir)
 
-    size = sum([max(0, len(files) - (32 - 1)) for r, d, files in os.walk(a.input_dir)])
-    
-    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([32, None, None, 3]), tf.TensorShape([32, None, None, 3]), tf.TensorShape([32])))
-    ds = ds.shuffle(100)
-    ds = ds.map(trans_fun)
-    ds = ds.apply(tf.contrib.data.batch_and_drop_remainder(a.batch_size))
-    iter = ds.make_one_shot_iterator()
-
-    inputs_batch, targets_batch, paths_batch = iter.get_next()
-    steps_per_epoch = int(math.ceil(size / a.batch_size))
-    examples = Examples(
-        paths = paths_batch,
-        inputs=inputs_batch,
-        targets=targets_batch, 
-        count=size,
-        steps_per_epoch=steps_per_epoch,
-    )
-
+    generate_examples()
+    examples = load_examples()
     print("examples count = %d" % examples.count)
     #inputs [batch_size, #images(depth), height, width, channels]
-
+    
     model = create_model(examples.inputs, examples.targets)
     #undo colorization splitting on images that we use for display/output
     inputs = deprocess(examples.inputs)
