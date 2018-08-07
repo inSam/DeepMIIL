@@ -171,7 +171,7 @@ def load_examples():
             'targets' : tf.FixedLenFeature([], tf.string),
             'paths' : tf.FixedLenFeature([], tf.string),
         }
-        filename_queue = tf.train.string_input_producer([data_path], num_epochs=1)
+        filename_queue = tf.train.string_input_producer([data_path], shuffle=a.mode=="train")
         reader = tf.TFRecordReader()
         _, serialized_example = reader.read(filename_queue)
         features = tf.parse_single_example(serialized_example, features=feature)
@@ -577,12 +577,12 @@ def main():
             saver.restore(sess, checkpoint)
 
         max_steps = 2**32
-        print("max steps is right now: %d" %max_steps)
+        #print("max steps is right now: %d" %max_steps)
         if a.max_epochs is not None:
             max_steps = examples.steps_per_epoch * a.max_epochs
         if a.max_steps is not None:
             max_steps = a.max_steps
-        print("max steps is right now: %d" %max_steps)
+        #print("max steps is right now: %d" %max_steps)
         if a.mode == "test":
             # testing
             # at most, process the test data once
@@ -601,7 +601,7 @@ def main():
             start = time.time()
             print("starting training")
             for step in range(max_steps):
-                print("step: %d" %step)
+                #print("step: %d" %step)
                 def should(freq):
                     return freq > 0 and ((step + 1) % freq == 0 or step == max_steps - 1)
 
