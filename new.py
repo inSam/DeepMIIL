@@ -577,11 +577,12 @@ def main():
             saver.restore(sess, checkpoint)
 
         max_steps = 2**32
+        print("max steps is right now: %d" %max_steps)
         if a.max_epochs is not None:
             max_steps = examples.steps_per_epoch * a.max_epochs
         if a.max_steps is not None:
             max_steps = a.max_steps
-
+        print("max steps is right now: %d" %max_steps)
         if a.mode == "test":
             # testing
             # at most, process the test data once
