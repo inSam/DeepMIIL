@@ -132,10 +132,7 @@ def generate_examples():
         #     plt.imshow(sess.run(raw_target)[10])
         #     plt.show()
         for i in range(len(input_paths) - 31):
-            identifier = []
-            for j in range(i, i+32):
-                identifier.append(str(j) + "_" + samples + ".png")
-            identifier = np.array(identifier)
+            identifier = str(samples) + "_" + str(i) + "-" str(len(input_paths) - 32) + ".png"
             input_slice = np.array(raw_input[i:i+32])
             target_slice = np.array(raw_target[i:i+32])
             yield (input_slice, target_slice, identifier)
@@ -467,7 +464,7 @@ def main():
 
     size = sum([max(0, len(files) - (32 - 1)) for r, d, files in os.walk(a.input_dir)])
     
-    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([32, None, None, 3]), tf.TensorShape([32, None, None, 3]), tf.TensorShape([32])))
+    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([32, None, None, 3]), tf.TensorShape([32, None, None, 3]), tf.TensorShape([])))
     ds = ds.shuffle(100)
     ds = ds.map(trans_fun).batch(a.batch_size)
     iter = ds.make_initializable_iterator()
