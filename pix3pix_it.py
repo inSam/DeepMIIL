@@ -45,6 +45,7 @@ parser.add_argument("--lr", type=float, default=0.0002, help="initial learning r
 parser.add_argument("--beta1", type=float, default=0.5, help="momentum term of adam")
 parser.add_argument("--l1_weight", type=float, default=100.0, help="weight on L1 term for generator gradient")
 parser.add_argument("--gan_weight", type=float, default=1.0, help="weight on GAN term for generator gradient")
+parser.add_argument("--slice_size", type=int, default=8, help="thickness of 3d volumes")
 
 # export options
 parser.add_argument("--output_filetype", default="png", choices=["png", "jpeg"])
@@ -131,42 +132,24 @@ def generate_examples():
         # with tf.Session() as sess:
         #     plt.imshow(sess.run(raw_target)[10])
         #     plt.show()
-        for i in range(len(input_paths) - 31):
-            identifier = str(samples) + "_" + str(i) + "-" str(len(input_paths) - 32) + ".png"
-            input_slice = np.array(raw_input[i:i+32])
-            target_slice = np.array(raw_target[i:i+32])
+        for i in range(len(input_paths) - (a.slice_size - 1)):
+            identifier = str(samples) + "_" + str(i) + "-" + str(len(input_paths) - a.slice_size) + ".png"
+            input_slice = np.array(raw_input[i:i+a.slice_size])
+            target_slice = np.array(raw_target[i:i+a.slice_size])
             yield (input_slice, target_slice, identifier)
 
 
 def trans_fun(input, target, identifier):
     input = tf.map_fn(transform, input)
     target = tf.map_fn(transform, target)
+    #input = input.set_shape([tf.shape(input)[0], CROP_SIZE, CROP_SIZE, 3])
+    #target = target.set_shape([tf.shape(input)[1], CROP_SIZE, CROP_SIZE, 3])
     return (input, target, identifier)
-
-
-def load_examples():
-    size = sum([max(0, len(files) - (32 - 1)) for r, d, files in os.walk(a.input_dir)])
-    
-    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([32, None, None, 3]), tf.TensorShape([32, None, None, 3]), tf.TensorShape([32])))
-    ds = ds.shuffle(100)
-    ds = ds.map(trans_fun)
-    ds = ds.apply(tf.contrib.data.batch_and_drop_remainder(a.batch_size))
-    iter = ds.make_one_shot_iterator()
-
-    inputs_batch, targets_batch, paths_batch = iter.get_next()
-    steps_per_epoch = int(math.ceil(size / a.batch_size))
-    return Examples(
-        paths = paths_batch,
-        inputs=inputs_batch,
-        targets=targets_batch, 
-        count=size,
-        steps_per_epoch=steps_per_epoch,
-    )
 
 
 def discrim_conv(batch_input, out_channels, stride):
     padded_input = tf.pad(batch_input, [[0, 0], [1, 1], [1, 1], [1, 1], [0, 0]], mode="CONSTANT")
-    return tf.layers.conv3d(padded_input, out_channels, kernel_size=4, strides=(stride, stride, stride), padding="valid", kernel_initializer=tf.random_normal_initializer(0, 0.02))
+    return tf.layers.conv3d(padded_input, out_channels, kernel_size=[3, 4, 4], strides=(stride, stride, stride), padding="valid", kernel_initializer=tf.random_normal_initializer(0, 0.02))
 
 def lrelu(x, a):
     with tf.name_scope("lrelu"):
@@ -253,7 +236,7 @@ def create_generator(generator_inputs, generator_outputs_channels):
 
             rectified = tf.nn.relu(input)
             # [batch, in_height, in_width, in_channels] => [batch, in_height*2, in_width*2, out_channels]
-            if(decoder_layer >= 3):
+            if(decoder_layer >= 5):
                 output = gen_deconv(rectified, out_channels, 2)
             else:
                 output = gen_deconv(rectified, out_channels, 1)
@@ -452,7 +435,7 @@ def append_index(filesets, step=False):
 
 def tensor_map(tensor, gname):
     output_list = []
-    for i in range(32):
+    for i in range(a.slice_size):
         output_list.append(tf.map_fn(tf.image.encode_png, tensor[:,i,:,:], dtype=tf.string,  name=gname))
     return tf.stack(output_list, axis=1)
         
@@ -462,9 +445,9 @@ def main():
     if not os.path.exists(a.output_dir):
         os.makedirs(a.output_dir)
 
-    size = sum([max(0, len(files) - (32 - 1)) for r, d, files in os.walk(a.input_dir)])
+    size = sum([max(0, len(files) - (a.slice_size - 1)) for r, d, files in os.walk(a.input_dir)])
     
-    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([32, None, None, 3]), tf.TensorShape([32, None, None, 3]), tf.TensorShape([])))
+    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([a.slice_size, None, None, 3]), tf.TensorShape([a.slice_size, None, None, 3]), tf.TensorShape([])))
     ds = ds.shuffle(100)
     ds = ds.map(trans_fun).batch(a.batch_size)
     iter = ds.make_initializable_iterator()
