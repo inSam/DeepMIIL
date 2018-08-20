@@ -401,14 +401,14 @@ def save_images(fetches, step=None):
     for i, in_path in enumerate(fetches["paths"]):
         #name, _ = os.path.splitext(os.path.basename(in_path.decode("utf8")))
         name = in_path
-        fileset = {"name": str(name[0]) + "-" str(name[1]), "step": step}
+        fileset = {"name": str(name[0]) + "-" + str(name[1]), "step": step}
         for kind in ["outputs", "inputs", "targets"]:
-            for j in range(len(a.slice_size)):
+            for j in range(a.slice_size):
                 filefolder = str(name[0]) + "-" + str(name[1] + j)
                 num = min(a.slice_size, name[1])
                 filename =  str(min(a.slice_size - j, num)) + "-" + "kind" + ".png"
-                out_path = os.path.join(image_dir, filefolder)
-                out_path = os.path.join(out_path, filename)
+                fold_path = os.path.join(image_dir, filefolder)
+                out_path = os.path.join(fold_path, filename)
                 if step is not None:
                     filename = "%08d-%s" % (step, filename)
                     
@@ -418,6 +418,9 @@ def save_images(fetches, step=None):
 
                 contents = fetches[kind][i]
                 if (kind == "outputs" or first):
+                    if not os.path.exists(fold_path):
+                            os.makedirs(fold_path)
+                            
                     with open(out_path, "wb") as f:
                         f.write(contents[j])
                 filesets.append(fileset)
