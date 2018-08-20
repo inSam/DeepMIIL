@@ -417,6 +417,7 @@ def save_images(fetches, step=None):
                     
                 first = min(a.slice_size - j, num) == 0
                 if first:
+                    print("FIRST IS TRUE---------")
                     fileset[kind] = filename
 
                 if (kind == "outputs" or first):
@@ -431,7 +432,7 @@ def save_images(fetches, step=None):
                 input_samples = [d for d in os.listdir(image_dir) if os.path.isdir(os.path.join(image_dir, d))]
                 for samples in input_samples:
                     input_dir = os.path.join(image_dir, samples)
-                    imlist = glob.glob(os.path.join(input_dir, "*.png"))
+                    imlist = glob.glob(os.path.join(input_dir, "*-outputs.png"))
                     # Assuming all images are the same size, get dimensions of first image
                     w,h=Image.open(imlist[0]).size
                     N=len(imlist)
