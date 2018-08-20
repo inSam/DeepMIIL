@@ -5,7 +5,9 @@ import imageio
 
 import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
+import PIL
+from PIL import Image
+#import matplotlib.pyplot as plt
 import argparse
 import os
 import json
@@ -133,7 +135,8 @@ def generate_examples():
         #     plt.imshow(sess.run(raw_target)[10])
         #     plt.show()
         for i in range(len(input_paths) - (a.slice_size - 1)):
-            identifier = str(samples) + "_" + str(i) + "-" + str(len(input_paths) - a.slice_size)
+            #identifier = str(samples) + "_" + str(i) + "-" + str(len(i) + a.slice_size - 1)
+            identifier = [samples, i]
             input_slice = np.array(raw_input[i:i+a.slice_size])
             target_slice = np.array(raw_target[i:i+a.slice_size])
             yield (input_slice, target_slice, identifier)
@@ -396,17 +399,51 @@ def save_images(fetches, step=None):
     for i, in_path in enumerate(fetches["paths"]):
         name, _ = os.path.splitext(os.path.basename(in_path.decode("utf8")))
         fileset = {"name": name, "step": step}
-        for kind in ["inputs", "outputs", "targets"]:
-            filename = name + "-" + kind + ".png"
-            if step is not None:
-                filename = "%08d-%s" % (step, filename)
-            fileset[kind] = filename
-            out_path = os.path.join(image_dir, filename)
-            contents = fetches[kind][i]
+        for kind in ["outputs", "inputs", "targets"]:
             for j in range(len(contents)):
-                with open(out_path, "wb") as f:
-                    f.write(contents[j])
-        filesets.append(fileset)
+                filefolder = str(name[0]) + "-" str(name[1] + j)
+                num = min(a.slice_size, name[1])
+                filename =  str(min(a.slice_size - j, num)) + "-" + "kind" + ".png"
+                out_path = os.path.join(image_dir, filefolder)
+                out_path = os.path.join(out_path, filename)
+                if step is not None:
+                    filename = "%08d-%s" % (step, filename)
+                    
+                first = min(a.slice_size, name[1]) == 0
+                if first:
+                    fileset[kind] = filename
+
+                contents = fetches[kind][i]
+                if (kind == "outputs" || first):
+                    with open(out_path, "wb") as f:
+                        f.write(contents[j])
+                filesets.append(fileset)
+
+        if kind == "outputs":
+            input_samples = [d for d in os.listdir(image_dir) if os.path.isdir(os.path.join(image_dir, d))]
+            for samples in input_samples:
+                input_dir = os.path.join(image_dir, samples)
+                imlist = glob.glob(os.path.join(input_dir, "*.png"))
+                # Assuming all images are the same size, get dimensions of first image
+                w,h=Image.open(imlist[0]).size
+                N=len(imlist)
+
+                # Create a numpy array of floats to store the average (assume RGB images)
+                arr=numpy.zeros((h,w,3),numpy.float)
+
+                # Build up average pixel intensities, casting each image as an array of floats
+                for im in imlist:
+                    imarr=numpy.array(Image.open(im),dtype=numpy.float)
+                    arr=arr+imarr/N
+
+                # Round values in array and cast as 8-bit integer
+                arr=numpy.array(numpy.round(arr),dtype=numpy.uint8)
+
+                # Generate, save and preview final image
+                out=Image.fromarray(arr,mode="RGB")
+                out.save("0.png")
+                
+    
     return filesets
 
 def append_index(filesets, step=False):
@@ -447,7 +484,7 @@ def main():
 
     size = sum([max(0, len(files) - (a.slice_size - 1)) for r, d, files in os.walk(a.input_dir)])
     
-    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.string), (tf.TensorShape([a.slice_size, None, None, 3]), tf.TensorShape([a.slice_size, None, None, 3]), tf.TensorShape([])))
+    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.int16), (tf.TensorShape([a.slice_size, None, None, 3]), tf.TensorShape([a.slice_size, None, None, 3]), tf.TensorShape([])))
     ds = ds.shuffle(100)
     ds = ds.map(trans_fun).batch(a.batch_size)
     iter = ds.make_initializable_iterator()
