@@ -138,7 +138,7 @@ def generate_examples():
         #     plt.show()
         for i in range(len(input_paths) - (a.slice_size - 1)):
             #identifier = str(samples) + "_" + str(i) + "-" + str(len(i) + a.slice_size - 1)
-            identifier = [samples, i]
+            identifier = np.array([samples, i])
             input_slice = np.array(raw_input[i:i+a.slice_size])
             target_slice = np.array(raw_target[i:i+a.slice_size])
             yield (input_slice, target_slice, identifier)
