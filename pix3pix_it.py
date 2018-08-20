@@ -408,6 +408,7 @@ def save_images(fetches, step=None):
             for j in range(len(contents)):
                 filefolder = str(name[0]) + "-" + str(name[1] + j)
                 num = min(a.slice_size, name[1])
+                print("Num currently is: %d" %num)
                 filename =  str(min(a.slice_size - j - 1, num)) + "-" + kind + ".png"
                 fold_path = os.path.join(image_dir, filefolder)
                 out_path = os.path.join(fold_path, filename)
@@ -450,7 +451,7 @@ def save_images(fetches, step=None):
 
                     # Generate, save and preview final image
                     out=Image.fromarray(arr,mode="RGB")
-                    out.save(os.path.join(input_dir, "0.png"))
+                    out.save(os.path.join(input_dir, "0-output.png"))
                 
     
     return filesets
