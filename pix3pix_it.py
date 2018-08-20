@@ -75,6 +75,8 @@ def transform(image):
     if a.flip:
         r = tf.image.random_flip_left_right(r, seed=t_seed)
 
+    if a.mode == "test":
+        a.scale_size = CROP_SIZE
     # area produces a nice downscaling, but does nearest neighbor for upscaling
     # assume we're going to be doing downscaling here
     r = tf.image.resize_images(r, [a.scale_size, a.scale_size], method=tf.image.ResizeMethod.AREA)
