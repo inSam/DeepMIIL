@@ -449,7 +449,7 @@ def save_images(fetches, step=None):
 
                     # Generate, save and preview final image
                     out=Image.fromarray(arr,mode="RGB")
-                    out.save("0.png")
+                    out.save(os.path.join(input_dir, "0.png"))
                 
     
     return filesets
