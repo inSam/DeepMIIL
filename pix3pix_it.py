@@ -412,7 +412,7 @@ def save_images(fetches, step=None):
                 if step is not None:
                     filename = "%08d-%s" % (step, filename)
                     
-                first = min(a.slice_size, name[1]) == 0
+                first = min(a.slice_size - j, num) == 0
                 if first:
                     fileset[kind] = filename
 
