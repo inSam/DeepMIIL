@@ -426,7 +426,6 @@ def save_images(fetches, step=None):
                             
                     with open(out_path, "wb") as f:
                         f.write(contents[j])
-                filesets.append(fileset)
 
             if (kind == "outputs"):
                 input_samples = [d for d in os.listdir(image_dir) if os.path.isdir(os.path.join(image_dir, d))]
@@ -453,7 +452,7 @@ def save_images(fetches, step=None):
                     out=Image.fromarray(arr,mode="RGB")
                     out.save(os.path.join(input_dir, "0-output.png"))
                 
-    
+        filesets.append(fileset)    
     return filesets
 
 def append_index(filesets, step=False):
