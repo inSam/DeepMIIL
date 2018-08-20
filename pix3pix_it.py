@@ -393,6 +393,7 @@ def set_mode():
         f.write(json.dumps(vars(a), sort_keys=True, indent=4))
 
 def save_images(fetches, step=None):
+    print("Calling function: save_images()")
     image_dir = os.path.join(a.output_dir, "images")
     if not os.path.exists(image_dir):
         os.makedirs(image_dir)
@@ -421,11 +422,11 @@ def save_images(fetches, step=None):
                     if not os.path.exists(fold_path):
                             os.makedirs(fold_path)
                             
-                    with open(out_path, "wb") as f:
+                    with open(out_path, "wb") as f:x
                         f.write(contents[j])
                 filesets.append(fileset)
 
-            if (kind == "outputs" and j == len(contents) - 1):
+            if (kind == "outputs"):
                 input_samples = [d for d in os.listdir(image_dir) if os.path.isdir(os.path.join(image_dir, d))]
                 for samples in input_samples:
                     input_dir = os.path.join(image_dir, samples)
