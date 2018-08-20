@@ -405,13 +405,13 @@ def save_images(fetches, step=None):
         print("slice number: %d" %name[1])
         fileset = {"name": str(name[0]) + "-" + str(name[1]), "step": step}
         for j in range(a.slice_size):
-            contents = fetches[kind][i]
             filefolder = str(name[0]) + "-" + str(name[1] + j)
             num = min(a.slice_size, name[1])
             print("Num currently is: %d" %num)
             first = min(a.slice_size - j, num) == 0
             
             for kind in ["outputs", "inputs", "targets"]:
+                contents = fetches[kind][i]
                 filename =  str(min(a.slice_size - j - 1, num)) + "-" + kind + ".png"
                 fold_path = os.path.join(image_dir, filefolder)
                 out_path = os.path.join(fold_path, filename)
