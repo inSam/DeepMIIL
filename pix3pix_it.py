@@ -402,7 +402,7 @@ def save_images(fetches, step=None):
         name, _ = os.path.splitext(os.path.basename(in_path.decode("utf8")))
         fileset = {"name": name, "step": step}
         for kind in ["outputs", "inputs", "targets"]:
-            for j in range(len(contents)):
+            for j in range(len(a.slice_size)):
                 filefolder = str(name[0]) + "-" + str(name[1] + j)
                 num = min(a.slice_size, name[1])
                 filename =  str(min(a.slice_size - j, num)) + "-" + "kind" + ".png"
@@ -431,15 +431,16 @@ def save_images(fetches, step=None):
                 N=len(imlist)
 
                 # Create a numpy array of floats to store the average (assume RGB images)
-                arr=numpy.zeros((h,w,3),numpy.float)
+                arr= np.zeros((h,w,3), np.float)
 
                 # Build up average pixel intensities, casting each image as an array of floats
                 for im in imlist:
-                    imarr=numpy.array(Image.open(im),dtype=numpy.float)
+                    imarr= np.array(Image.open(im),dtype= np.float)
                     arr=arr+imarr/N
+                    os.remove(im)
 
                 # Round values in array and cast as 8-bit integer
-                arr=numpy.array(numpy.round(arr),dtype=numpy.uint8)
+                arr= np.array(np.round(arr),dtype=np.uint8)
 
                 # Generate, save and preview final image
                 out=Image.fromarray(arr,mode="RGB")
