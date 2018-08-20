@@ -409,7 +409,7 @@ def save_images(fetches, step=None):
                 print("content size: %d" % len(contents))
                 filefolder = str(name[0]) + "-" + str(name[1] + j)
                 num = min(a.slice_size, name[1])
-                filename =  str(min(a.slice_size - j, num)) + "-" + kind + ".png"
+                filename =  str(min(a.slice_size - j - 1, num)) + "-" + kind + ".png"
                 fold_path = os.path.join(image_dir, filefolder)
                 out_path = os.path.join(fold_path, filename)
                 if step is not None:
