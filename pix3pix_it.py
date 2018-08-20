@@ -403,7 +403,7 @@ def save_images(fetches, step=None):
         fileset = {"name": name, "step": step}
         for kind in ["outputs", "inputs", "targets"]:
             for j in range(len(contents)):
-                filefolder = str(name[0]) + "-" str(name[1] + j)
+                filefolder = str(name[0]) + "-" + str(name[1] + j)
                 num = min(a.slice_size, name[1])
                 filename =  str(min(a.slice_size - j, num)) + "-" + "kind" + ".png"
                 out_path = os.path.join(image_dir, filefolder)
@@ -416,7 +416,7 @@ def save_images(fetches, step=None):
                     fileset[kind] = filename
 
                 contents = fetches[kind][i]
-                if (kind == "outputs" || first):
+                if (kind == "outputs" or first):
                     with open(out_path, "wb") as f:
                         f.write(contents[j])
                 filesets.append(fileset)
