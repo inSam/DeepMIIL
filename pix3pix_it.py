@@ -486,7 +486,7 @@ def main():
 
     size = sum([max(0, len(files) - (a.slice_size - 1)) for r, d, files in os.walk(a.input_dir)])
     
-    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.int16), (tf.TensorShape([a.slice_size, None, None, 3]), tf.TensorShape([a.slice_size, None, None, 3]), tf.TensorShape([])))
+    ds = tf.data.Dataset().from_generator(generate_examples, (tf.float32, tf.float32, tf.int16), (tf.TensorShape([a.slice_size, None, None, 3]), tf.TensorShape([a.slice_size, None, None, 3]), tf.TensorShape([2, ])))
     ds = ds.shuffle(100)
     ds = ds.map(trans_fun).batch(a.batch_size)
     iter = ds.make_initializable_iterator()
