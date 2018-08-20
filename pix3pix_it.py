@@ -404,19 +404,20 @@ def save_images(fetches, step=None):
         name = in_path
         print("slice number: %d" %name[1])
         fileset = {"name": str(name[0]) + "-" + str(name[1]), "step": step}
-        for kind in ["outputs", "inputs", "targets"]:
+        for j in range(a.slice_size):
             contents = fetches[kind][i]
-            for j in range(len(contents)):
-                filefolder = str(name[0]) + "-" + str(name[1] + j)
-                num = min(a.slice_size, name[1])
-                print("Num currently is: %d" %num)
+            filefolder = str(name[0]) + "-" + str(name[1] + j)
+            num = min(a.slice_size, name[1])
+            print("Num currently is: %d" %num)
+            first = min(a.slice_size - j, num) == 0
+            
+            for kind in ["outputs", "inputs", "targets"]:
                 filename =  str(min(a.slice_size - j - 1, num)) + "-" + kind + ".png"
                 fold_path = os.path.join(image_dir, filefolder)
                 out_path = os.path.join(fold_path, filename)
                 if step is not None:
                     filename = "%08d-%s" % (step, filename)
                     
-                first = min(a.slice_size - j, num) == 0
                 if first:
                     fileset[kind] = filename
 
@@ -426,34 +427,38 @@ def save_images(fetches, step=None):
                             
                     with open(out_path, "wb") as f:
                         f.write(contents[j])
+            if first:
+                filesets.append(fileset)
 
-            if (kind == "outputs"):
-                input_samples = [d for d in os.listdir(image_dir) if os.path.isdir(os.path.join(image_dir, d))]
-                for samples in input_samples:
-                    input_dir = os.path.join(image_dir, samples)
-                    imlist = glob.glob(os.path.join(input_dir, "*-outputs.png"))
-                    # Assuming all images are the same size, get dimensions of first image
-                    w,h=Image.open(imlist[0]).size
-                    N=len(imlist)
-
-                    # Create a numpy array of floats to store the average (assume RGB images)
-                    arr= np.zeros((h,w,3), np.float)
-
-                    # Build up average pixel intensities, casting each image as an array of floats
-                    for im in imlist:
-                        imarr= np.array(Image.open(im),dtype= np.float)
-                        arr=arr+imarr/N
-                        os.remove(im)
-
-                    # Round values in array and cast as 8-bit integer
-                    arr= np.array(np.round(arr),dtype=np.uint8)
-
-                    # Generate, save and preview final image
-                    out=Image.fromarray(arr,mode="RGB")
-                    out.save(os.path.join(input_dir, "0-output.png"))
-                
-        filesets.append(fileset)    
+        
     return filesets
+
+def combine_png():
+    image_dir = os.path.join(a.output_dir, "images")
+    input_samples = [d for d in os.listdir(image_dir) if os.path.isdir(os.path.join(image_dir, d))]
+    for samples in input_samples:
+        input_dir = os.path.join(image_dir, samples)
+        imlist = glob.glob(os.path.join(input_dir, "*-outputs.png"))
+        # Assuming all images are the same size, get dimensions of first image
+        w,h=Image.open(imlist[0]).size
+        N=len(imlist)
+
+        # Create a numpy array of floats to store the average (assume RGB images)
+        arr= np.zeros((h,w,3), np.float)
+
+        # Build up average pixel intensities, casting each image as an array of floats
+        for im in imlist:
+            imarr= np.array(Image.open(im),dtype= np.float)
+            arr=arr+imarr/N
+            os.remove(im)
+
+        # Round values in array and cast as 8-bit integer
+        arr= np.array(np.round(arr),dtype=np.uint8)
+
+        # Generate, save and preview final image
+        out=Image.fromarray(arr,mode="RGB")
+        out.save(os.path.join(input_dir, "0-output.png"))
+
 
 def append_index(filesets, step=False):
     index_path = os.path.join(a.output_dir, "index.html")
@@ -677,5 +682,6 @@ def main():
                 if sv.should_stop():
                     break
 
-    
+    if a.mode == "test":
+        combine_png()
 main()
