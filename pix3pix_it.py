@@ -399,8 +399,9 @@ def save_images(fetches, step=None):
 
     filesets = []
     for i, in_path in enumerate(fetches["paths"]):
-        name, _ = os.path.splitext(os.path.basename(in_path.decode("utf8")))
-        fileset = {"name": name, "step": step}
+        #name, _ = os.path.splitext(os.path.basename(in_path.decode("utf8")))
+        name = in_path
+        fileset = {"name": str(name[0]) + "-" str(name[1]), "step": step}
         for kind in ["outputs", "inputs", "targets"]:
             for j in range(len(a.slice_size)):
                 filefolder = str(name[0]) + "-" + str(name[1] + j)
