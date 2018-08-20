@@ -406,7 +406,6 @@ def save_images(fetches, step=None):
         for kind in ["outputs", "inputs", "targets"]:
             contents = fetches[kind][i]
             for j in range(len(contents)):
-                print("content size: %d" % len(contents))
                 filefolder = str(name[0]) + "-" + str(name[1] + j)
                 num = min(a.slice_size, name[1])
                 filename =  str(min(a.slice_size - j - 1, num)) + "-" + kind + ".png"
