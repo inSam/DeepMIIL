@@ -402,6 +402,7 @@ def save_images(fetches, step=None):
     for i, in_path in enumerate(fetches["paths"]):
         #name, _ = os.path.splitext(os.path.basename(in_path.decode("utf8")))
         name = in_path
+        print("slice number: " %name[1])
         fileset = {"name": str(name[0]) + "-" + str(name[1]), "step": step}
         for kind in ["outputs", "inputs", "targets"]:
             contents = fetches[kind][i]
@@ -417,7 +418,6 @@ def save_images(fetches, step=None):
                     
                 first = min(a.slice_size - j, num) == 0
                 if first:
-                    print("FIRST IS TRUE---------")
                     fileset[kind] = filename
 
                 if (kind == "outputs" or first):
