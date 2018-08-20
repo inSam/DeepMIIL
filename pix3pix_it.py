@@ -403,12 +403,12 @@ def save_images(fetches, step=None):
         name = in_path
         fileset = {"name": str(name[0]) + "-" + str(name[1]), "step": step}
         for kind in ["outputs", "inputs", "targets"]:
-            filefolder = str(name[0]) + "-" + str(name[1] + j)
-            fold_path = os.path.join(image_dir, filefolder)
-            
-            for j in range(a.slice_size):
+            contents = fetches[kind][i]
+            for j in range(len(contents)):
+                filefolder = str(name[0]) + "-" + str(name[1] + j)
                 num = min(a.slice_size, name[1])
                 filename =  str(min(a.slice_size - j, num)) + "-" + kind + ".png"
+                fold_path = os.path.join(image_dir, filefolder)
                 out_path = os.path.join(fold_path, filename)
                 if step is not None:
                     filename = "%08d-%s" % (step, filename)
@@ -417,7 +417,6 @@ def save_images(fetches, step=None):
                 if first:
                     fileset[kind] = filename
 
-                contents = fetches[kind][i]
                 if (kind == "outputs" or first):
                     if not os.path.exists(fold_path):
                             os.makedirs(fold_path)
@@ -426,27 +425,30 @@ def save_images(fetches, step=None):
                         f.write(contents[j])
                 filesets.append(fileset)
 
-            if kind == "outputs":
-                imlist = glob.glob(os.path.join(fold_path, "*.png"))
-                # Assuming all images are the same size, get dimensions of first image
-                w,h=Image.open(imlist[0]).size
-                N=len(imlist)
+            if (kind == "outputs" and j == len(contents) - 1):
+                input_samples = [d for d in os.listdir(image_dir) if os.path.isdir(os.path.join(image_dir, d))]
+                for samples in input_samples:
+                    input_dir = os.path.join(image_dir, samples)
+                    imlist = glob.glob(os.path.join(input_dir, "*.png"))
+                    # Assuming all images are the same size, get dimensions of first image
+                    w,h=Image.open(imlist[0]).size
+                    N=len(imlist)
 
-                # Create a numpy array of floats to store the average (assume RGB images)
-                arr= np.zeros((h,w,3), np.float)
+                    # Create a numpy array of floats to store the average (assume RGB images)
+                    arr= np.zeros((h,w,3), np.float)
 
-                # Build up average pixel intensities, casting each image as an array of floats
-                for im in imlist:
-                    imarr= np.array(Image.open(im),dtype= np.float)
-                    arr=arr+imarr/N
-                    os.remove(im)
+                    # Build up average pixel intensities, casting each image as an array of floats
+                    for im in imlist:
+                        imarr= np.array(Image.open(im),dtype= np.float)
+                        arr=arr+imarr/N
+                        os.remove(im)
 
-                # Round values in array and cast as 8-bit integer
-                arr= np.array(np.round(arr),dtype=np.uint8)
+                    # Round values in array and cast as 8-bit integer
+                    arr= np.array(np.round(arr),dtype=np.uint8)
 
-                # Generate, save and preview final image
-                out=Image.fromarray(arr,mode="RGB")
-                out.save("0.png")
+                    # Generate, save and preview final image
+                    out=Image.fromarray(arr,mode="RGB")
+                    out.save("0.png")
                 
     
     return filesets
