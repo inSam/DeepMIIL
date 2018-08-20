@@ -423,7 +423,7 @@ def save_images(fetches, step=None):
                     if not os.path.exists(fold_path):
                             os.makedirs(fold_path)
                             
-                    with open(out_path, "wb") as f:x
+                    with open(out_path, "wb") as f:
                         f.write(contents[j])
                 filesets.append(fileset)
 
