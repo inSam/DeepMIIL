@@ -406,9 +406,9 @@ def save_images(fetches, step=None):
         fileset = {"name": str(name[0]) + "-" + str(name[1]), "step": step}
         for j in range(a.slice_size):
             filefolder = str(name[0]) + "-" + str(name[1] + j)
-            num = min(a.slice_size, name[1])
-            print("Num currently is: %d" %num)
-            first = min(a.slice_size - j, num) == 0
+            num = min(a.slice_size - 1, name[1])
+            #print("Num currently is: %d" %num)
+            first = min(a.slice_size - j - 1, num) == 0
             
             for kind in ["outputs", "inputs", "targets"]:
                 contents = fetches[kind][i]
