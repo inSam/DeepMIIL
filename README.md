@@ -10,5 +10,3 @@ To run
 
 # Autov: MSE and MS-SIM accuracy benchmarks. 
 autov compile (temp makefile replacement): g++ autov.c++ -o autov `pkg-config --cflags opencv`  `pkg-config --cflags --libs opencv`
-
-TODO: generate a error-heatmap of the attenuation mapping
