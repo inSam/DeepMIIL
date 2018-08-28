@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <vector>
 #include <string>
+#include <numeric>
 #include <algorithm>
 #include <opencv2/opencv.hpp>
 
@@ -11,6 +12,7 @@ using namespace cv;
 using namespace std;
 
 Scalar getMSSIM( const Mat& i1, const Mat& i2);
+double getPSNR(const Mat& I1, const Mat& I2);
 
 int main(){
     string dirname;
@@ -42,6 +44,8 @@ int main(){
     
     vector<double> MSE;
     vector<Scalar> SSIM;
+    vector<double> PNSR;
+    cv::Scalar zero(0, 0, 0);
     //callculates MSE; 
        for(size_t i = 0; i < outputList.size(); i++){
         cv::Mat output = cv::imread(outputList[i]);
@@ -53,6 +57,16 @@ int main(){
         MSE.push_back(sum.val[0] + sum.val[1] + sum.val[2]);
 
         SSIM.push_back(getMSSIM(output, input));
+
+        PNSR.push_back(getPSNR(output, input));
+        
+        cv::Mat heatmap;
+        cv::applyColorMap(diff, heatmap, cv::COLORMAP_JET);
+        //save heatmap
+        string filename = dirname + "/" + "headmap-" + to_string(i) + ".png";
+        cout << "saving: " << filename << endl;
+        cv::imwrite(filename, heatmap);
+        
     }
 
     for(size_t i = 0; i < outputList.size(); i++){
@@ -61,7 +75,13 @@ int main(){
              << " R " << setiosflags(ios::fixed) << setprecision(2) << SSIM[i].val[2] * 100 << "%"
              << " G " << setiosflags(ios::fixed) << setprecision(2) << SSIM[i].val[1] * 100 << "%"
              << " B " << setiosflags(ios::fixed) << setprecision(2) << SSIM[i].val[0] * 100 << "%" << endl;
+        cout << " PNSR: " << PNSR[i] << endl;
     }
+
+    cout << "Average MSE: " << std::accumulate(MSE.begin(), MSE.end(), 0.0)/MSE.size() << endl;
+    Scalar sum = std::accumulate(SSIM.begin(), SSIM.end(), zero);
+    cout << "Average MSSIM: " << (sum[0] + sum[1] + sum[2])/SSIM.size()/3 << endl;
+    cout << "Average PNSR: " << std::accumulate(PNSR.begin(), PNSR.end(), 0.0)/PNSR.size() << endl;
 }
 
 
